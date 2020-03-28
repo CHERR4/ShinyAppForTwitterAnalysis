@@ -1,33 +1,34 @@
 library(shiny)
+library("twitteR")
+library("tm")
+library(wordcloud)
+library(wordcloud2)
+library(DT)
+library(plyr); library(dplyr); library("tidyverse")
 CONSUMER_KEY <- 
 CONSUMER_SECRET <- 
 access_token <- 
 access_secret <- 
 setup_twitter_oauth(CONSUMER_KEY, CONSUMER_SECRET, access_token, access_secret)
 
-# one preloaded view
-tweets.df <- as.data.frame(
-	read.csv(
-		"/home/cherra/RVisualization/RShinyApp/data/CambioClimatico.csv", comment.char="#"
-	)
-)
+
+getTweetsFromWord <- function(word) {
+    tweets <- searchTwitter(word,n=1500)
+    tweets.df <<- ldply(tweets, function(t) t$toDataFrame())
+    write.csv(tweets.df, file = paste("data/", word,".csv"), row.names = FALSE)
+	browser()
+}
+
+getTweetsFromWordCsv <- function(word) {
+    tweets.df <<- read_csv(paste("data/", word, ".csv"))
+}
 
 load.tweets <- function(word) {
-	#if(!file.exists('data/' + word+'.csv')) {
-	tweets <- searchTwitter(word,n=1500)
-	# Convertimos a data.frame
-	tweets.df.2 <- ldply(tweets, function(t) t$toDataFrame())
-	write.csv(tweets.df, file = word+".csv", row.names = FALSE)
-	
-	#} else {
-	#	tweets.df.2 <- as.data.frame(
-	#			read.csv(
-	#				"/home/cherra/RVisualization/RShinyApp/data/CambioClimatico.csv", comment.char="#"
-	#			)
-	#		)
-	#}
-	#'''
-	return(tweets.df.2)
+	if(!file.exists(paste("data/", word, ".csv"))) {
+        getTweetsFromWord(word)
+    } else {
+        getTweetsFromWordCsv(word)
+    }
 }
 
 #docsCorpus <- stri_trans_general(docsCorpus,"Latin-ASCII")
@@ -90,8 +91,6 @@ getWordcloudFromFreq <- function(freq) {
 	return(wc1)
 }
 
-
-
 getWordcloud <- function() {
 	corpus <- getCorpus(tweets.df$text)
 	corpus <- cleanCorpus(corpus)
@@ -104,14 +103,15 @@ getTweets <- function() {
   # tweets <- searchTwitter(word,n=1500)
   # Convertimos a data.frame
 	tweets.df.2 <- select(tweets.df, text, screenName)
-  return(tweets.df.2)
+	return(tweets.df.2)
 }
 
 getTopDevices <- function(top) {
 	# review when top > dim
+
 	grouped.tweets.df <- group_by(tweets.df, statusSource)
 	grouped.tweets.df <- select(grouped.tweets.df, statusSource)
- 	n.tweets.device <- unique(mutate(grouped.tweets.df,number=n()))
+ 	n.tweets.device <- unique(dplyr::mutate(grouped.tweets.df,number=n()))
 	# row.names(n.tweets.device) <- n.tweets.device[1]
 	top_n(n.tweets.device, 5)
 	n.tweets.device <- n.tweets.device[1:top,1:2]
@@ -121,7 +121,7 @@ getTopDevices <- function(top) {
 getMostTweeters <- function() {
 	tweets.df.2 <- select(tweets.df, screenName)
 	grouped.tweets <- group_by(tweets.df.2, screenName)
-	n.tweets.user <- arrange(unique(mutate(grouped.tweets, number=n())), desc(number))
+	n.tweets.user <- arrange(unique(dplyr::mutate(grouped.tweets, number=n())), desc(number))
 	return(n.tweets.user)
 }
 
@@ -135,38 +135,44 @@ getTopTweeters <- function() {
 			%>%
 			arrange(desc(favoriteCount_favs), desc(retweetCount_favs))
 			%>%
-			rename(favs = favoriteCount_favs, retweets = retweetCount_favs))
+			dplyr::rename(favs = favoriteCount_favs, retweets = retweetCount_favs))
 }
-
-
 
 # Define server logic ----
 server <- function(input, output) {
-
+	
 	observeEvent(input$submit, {
-			tweets.df <- load.tweets(input$text)
-	})
+			load.tweets(input$text)
 
-	output$table <- DT::renderDataTable({
-		DT::datatable(getTweets(),options = list(
-		pageLength = 3,
-		lengthMenu = c(3, 5, 10, 20)
-		))
-	})
+		output$table <- DT::renderDataTable({
+			DT::datatable(getTweets(),options = list(
+			pageLength = 3,
+			lengthMenu = c(3, 5, 10, 20)
+			))
+		})
 
-	output$topDevices <- renderPlot({
-		getTopDevices(input$topDevices)
-	})
+		output$table <- DT::renderDataTable({
+			DT::datatable(getTweets(),options = list(
+			pageLength = 3,
+			lengthMenu = c(3, 5, 10, 20)
+			))
+		})
 
-	output$users <- DT::renderDataTable({
-		DT::datatable(getTopTweeters(), options = list(
-		pageLength = 5,
-		lengthMenu = c(5, 10, 20, 25)
-		))
-	})
+		output$topDevices <- renderPlot({
+			getTopDevices(input$topDevices)
+		})
 
-	output$topWords <- renderPlot({
-		getWordcloud()
-	})
 
+		output$users <- DT::renderDataTable({
+			DT::datatable(getTopTweeters(), options = list(
+			pageLength = 5,
+			lengthMenu = c(5, 10, 20, 25)
+			))
+		})
+
+		output$topWords <- renderPlot({
+			getWordcloud()
+		})
+	})
+	
 }
