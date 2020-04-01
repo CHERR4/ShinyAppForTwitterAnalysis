@@ -1,0 +1,178 @@
+---
+title: "SentimentAnalysis"
+author: "Cherra"
+date: "31 de marzo de 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, include=FALSE}
+library(readr)
+library(tidytext)
+library(dplyr)
+library(stringr)
+library(magrittr)
+library(tidyr)
+library(ggplot2)
+library(wordcloud)
+library(reshape2)
+library(igraph)
+library(ggraph)
+```
+
+
+# Sentiment Analysis R Markdown
+
+Importing tweets from csv
+
+```{r tweets, results='hide'}
+tweets <- read_csv("dashboardVersion/data/ coronavirus .csv")
+```
+## Preparation
+
+I want to arrange tweets in order of rtweets to see the influence is positive or negative
+
+First of all I get all text from every tweet and tokenize it in words linking them with the number of the tweet.
+
+I also get the words of the dictionary "nrc" with the sentiment "joy", this is only for a example of working with sentiment
+
+```{r data preparation}
+arranged.tweets <- tweets %>%
+  arrange(desc(retweetCount))
+
+word.tokens <- arranged.tweets %>%
+        select(text) %>%
+        mutate(tweet = row_number()) %>%
+        unnest_tokens(word, text)
+
+nrc_joy <- get_sentiments("nrc") %>% 
+  filter(sentiment == "joy")
+```
+
+# Sentiment Analysis
+
+## Word analysis
+
+### Analyze one sentiment
+
+In this case we decided "joy", for getting the words of the tweets linked with joy whe have to do an inner_join between the tokenized words and the words related with joy
+
+```{r sentiment analysis nrc}
+word.tokens %>%
+  inner_join(nrc_joy) %>%
+  count(word, sort = TRUE)
+```
+
+### Sentiment per tweet (word)
+
+I want to get the sentiment in every tweet and show them in a x/y barplot
+
+```{r sentiment analysis per tweet}
+tweets.sentiment <- word.tokens %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(tweet, sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
+```
+### Plot (word)
+
+Once I've got the sentiment of every tweet I want to plot them correctly
+
+```{r}
+ggplot(tweets.sentiment, aes(tweet, sentiment)) +
+  geom_col(show.legend = FALSE)
+```
+
+### Wordcloud
+
+Let's create a wordcloud with the positive and negative terms in the tweets
+
+```{r}
+word.tokens %>%
+    inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("red", "green"),
+                   max.words = 100)
+```
+
+# NGRAMS
+
+## Bigrams
+
+https://www.tidytextmining.com/ngrams.html#tokenizing-by-n-gram
+
+```{r get bigrams}
+word.bigrams <- tweets %>% 
+  select(text) %>%
+  unnest_tokens(bigram, text, token = "ngrams", n = 2)
+
+word.bigrams %>%
+  count(bigram, sort = TRUE)
+
+bigrams.separated <- word.bigrams %>%
+  separate(bigram, c("word1", "word2"), sep = " ")
+
+bigrams.filtered <- bigrams.separated %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+
+bigram.counts <- bigrams.filtered %>%
+  count(word1, word2, sort = TRUE)
+
+bigram.counts
+```
+
+### Analyzing context with bigram
+
+whe are going to use bigrams to analyze context, the way we are doing is localizating bigrams that the first word is not, in order that context of sentence change
+
+```{r context with bigrams}
+bigrams.separated %>%
+  filter(word1 == "not") %>%
+  count(word1, word2, sort = TRUE)
+
+AFINN <- get_sentiments("afinn")
+bigrams.separated %>%
+  filter(word1 == "not") %>%
+  inner_join(AFINN, by = c(word2 = "word")) %>%
+  count(word2, value, sort = TRUE)
+```
+### graph plotting bigrams
+
+First of all I have to get the bigrams as graph, I filter the most important bigrams by the half of  the dataframe, it's nos a very big sample 
+```{r}
+bigram.graph <- bigram.counts %>%
+  filter(n > quantile(n, .98)) %>%
+  graph_from_data_frame()
+```
+
+Then we are going to plot them graphicaly
+
+```{r}
+set.seed(2017)
+
+ggraph(bigram.graph, layout = "fr") +
+  geom_edge_link() +
+  geom_node_point() +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1)
+```
+
+Another graphic
+
+```{r}
+set.seed(2016)
+
+a <- grid::arrow(type = "closed", length = unit(.15, "inches"))
+
+ggraph(bigram.graph, layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE,
+                 arrow = a, end_cap = circle(.07, 'inches')) +
+  geom_node_point(color = "lightblue", size = 5) +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+  theme_void()
+```
+

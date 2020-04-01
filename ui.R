@@ -3,7 +3,6 @@ library(DT)
 # Define UI for app ----
 ui <- fluidPage(
   titlePanel("Twitter app"),
-
   sidebarLayout(
     sidebarPanel(
         textInput("text", h3("Word search"), 
