@@ -6,13 +6,14 @@ library(shinyWidgets)
 ui <- dashboardPage(
   dashboardHeader(title = "Twitter app"),
   dashboardSidebar(
-    searchInput(inputId = "search", label = "Search..."),
     menuItem("Theme", tabName = "theme", icon = icon("dashboard")),
     menuItem("User", tabName = "user", icon = icon("user"))
   ),
   dashboardBody(
-  sidebarSearchForm(textId = "searchText", buttonId = "searchButton",
-                    label = "Search..."),
+    column(12, 
+      fluidRow(textInput("text", h3("Word search"), 
+        value = "CambioClimatico"),
+      actionButton("submit", label="submit"))),
   tabItems(
       # First tab content
       tabItem(tabName = "theme",
@@ -29,14 +30,15 @@ ui <- dashboardPage(
           DT::dataTableOutput("top.tweeters")))
         ),
         fluidRow(
-          box(
-            title = "Top words", id="words", status="warning", solidHeader = TRUE,
-            plotOutput("top.words")
+          tabBox(title = "Words", id="words",
+          tabPanel("Wordcloud",
+          plotOutput("wordcloud")),
+          tabPanel("Top words",
+          plotOutput("top.words"))
           ),
-          box(
-            title = "Sentiments", id="sentiments.box", status="warning", solidHeader = TRUE,
-            plotOutput("sentiments")
-          )
+          tabBox(title = "Sentiments", id="sentiments",
+          tabPanel("Sentiments by tweet",
+          plotOutput("sentiments.by.tweet")))
         )
       ),
       # Second tab content

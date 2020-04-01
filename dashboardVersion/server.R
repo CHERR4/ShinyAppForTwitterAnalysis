@@ -42,63 +42,10 @@ getTweets <- function() {
 	return(select(tweets.df, text, screenName))
 }
 
-#docsCorpus <- stri_trans_general(docsCorpus,"Latin-ASCII")
-limpiar <- function(x){
-	x <- gsub("http[[:alnum:]]*",'', x)
-	x <- gsub('http\\S+\\s*', '', x) ## Remove URLs
-	x <- gsub('\\b+RT', '', x) ## Remove RT
-	x <- gsub('#\\S+', '', x) ## Remove Hashtags
-	x <- gsub('@\\S+', '', x) ## Remove Mentions
-	x <- gsub('[[:cntrl:]]', '', x) ## Remove Controls and special characters
-	x <- gsub("\\d", '', x) ## Remove Controls and special characters
-	x <- gsub('[[:punct:]]', '', x) ## Remove Punctuations
-	x <- gsub("^[[:space:]]*","",x) ## Remove leading whitespaces
-	x <- gsub("[[:space:]]*$","",x) ## Remove trailing whitespaces
-	x <- gsub(' +',' ',x) ## Remove extra whitespaces
-	x <- iconv(x, to='ASCII//TRANSLIT') # Remove accent and special letter
-	return(x)
-}
-
-getCorpus <- function(text) {
-	return(tm_map(Corpus(VectorSource(text)), function(x) iconv(enc2utf8(x), sub = "byte")))
-}
-
-cleanCorpus <- function(docsCorpus) {
-	# quito las mayúsculas
-	docsCorpus <- tm_map(docsCorpus, tolower)
-	docsCorpus <- tm_map(docsCorpus, limpiar)
-	docsCorpus <- tm_map(docsCorpus, removeWords, stopwords("english"))
-	indeseadas <- c("rt") # algunas palabras que no me interesan y que me aparecen en el análisis
-	docsCorpus <- tm_map(docsCorpus, removeWords, indeseadas)
-	return(docsCorpus)
-}
-
-getDtm <- function(corpus, sparse=NULL) {
-	dtm <- DocumentTermMatrix(corpus)
-	if(!is.null(sparse)) {
-		dtm <- removeTermMatrix(dtm, sparse)
-	}
-	return(dtm)
-}
-
-getFreqFromDtm <- function(dtm) {
-	freq <- as.data.frame(colSums(as.matrix(dtm)))
-	freq <- mutate(freq,termino= rownames(freq))
-	colnames(freq) <- c("frecuencia","termino")
-	cols <- c("termino", "frecuencia")
-	freq <- freq[cols]
-	return(freq)
-}
-
-getWordcloudFromFreq <- function(freq) {
-	set.seed(142)
-	# Distintas paletas de colores
-	brewer.pal(6, "Dark2")
-	brewer.pal(9,"YlGnBu")
-	wc1 <- wordcloud(freq$termino, freq$frecuencia, 
-	min.freq=50, max.words=50, scale=c(8, .01), 
-	colors=brewer.pal(6, "Dark2"))
-	return(wc1)
+getTopTweets <- function() {
+	return(tweets.df %>%
+	select(text, screenName, retweetCount, favoriteCount) %>%
+	arrange(desc(retweetCount)))
 }
 
 getWordcloud <- function() {
@@ -154,40 +101,66 @@ getSentimentPlot <- function() {
 		count(tweet, sentiment) %>%
 		spread(sentiment, n, fill = 0) %>%
 		mutate(sentiment = positive - negative)
-	ggplot(tweets.sentiment, aes(tweet, sentiment)) +
-  		geom_col(show.legend = FALSE)
+	return(ggplot(tweets.sentiment, aes(tweet, sentiment)) +
+  		geom_col(show.legend = FALSE))
+}
+
+# TODO: fix duplicated code to get tweets.sentiments and word.tokens
+getTopWordBySentimentPlot <- function() {
+	arranged.tweets <- tweets.df %>%
+  		arrange(desc(retweetCount))
+	word.count <- arranged.tweets %>%
+					select(text) %>%
+					unnest_tokens(word,text) %>%
+					inner_join(get_sentiments("bing")) %>%
+					count(word, sentiment) %>%
+					top_n(10, n)
+	ggplot(word.count, aes(x = word, y = n)) +
+	geom_col(show.legend = FALSE, aes(colour = sentiment, fill = sentiment))
 }
 
 server <- function(input, output) { 
+	observeEvent(input$submit, {
+		load.tweets(input$text)
 
-    load.tweets("coronavirus")
+		output$all.tweets <- DT::renderDataTable({
+			DT::datatable(getTweets(),options = list(
+			pageLength = 5  ,
+			lengthMenu = c(5, 10, 20, 25)
+			))
+		})
 
-    output$all.tweets <- DT::renderDataTable({
-        DT::datatable(getTweets(),options = list(
-        pageLength = 5  ,
-        lengthMenu = c(5, 10, 20, 25)
-        ))
-    })
+		output$top.tweets <- DT::renderDataTable({
+			DT::datatable(getTopTweets(),options = list(
+			pageLength = 5  ,
+			lengthMenu = c(5, 10, 20, 25)
+			))
+		})
 
-    output$most.tweeters <- DT::renderDataTable({
-        DT::datatable(getMostTweeters(),options = list(
-        pageLength = 5,
-        lengthMenu = c(5, 10, 20, 25)
-        ))
-    })
+		output$most.tweeters <- DT::renderDataTable({
+			DT::datatable(getMostTweeters(),options = list(
+			pageLength = 5,
+			lengthMenu = c(5, 10, 20, 25)
+			))
+		})
 
-    output$top.tweeters <- DT::renderDataTable({
-        DT::datatable(getTopTweeters(),options = list(
-        pageLength = 5,
-        lengthMenu = c(5, 10, 20, 25)
-        ))
-    })
+		output$top.tweeters <- DT::renderDataTable({
+			DT::datatable(getTopTweeters(),options = list(
+			pageLength = 10,
+			lengthMenu = c(5, 10, 20, 25)
+			))
+		})
 
-    output$top.words <- renderPlot({
-        getWordcloud()
-    })
+		output$wordcloud <- renderPlot({
+			getWordcloud()
+		})
 
-	output$sentiments <- renderPlot({
-        getSentimentPlot()
-    })
+		output$sentiments.by.tweet <- renderPlot({
+			getSentimentPlot()
+		})
+
+		output$top.words <- renderPlot({
+			getTopWordBySentimentPlot()
+		})
+	})
 }
