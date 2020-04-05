@@ -1,0 +1,96 @@
+---
+title: "User analysis rtweet"
+author: "Cherra"
+date: "4 de abril de 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library("rtweet")
+library("ggplot2")
+library("dplyr")
+library("lubridate")
+library("purrr")
+```
+
+# Getting user
+
+We will see the way of getting an user
+```{r getUser}
+user.name <- "joserraCasero"
+tweets.user <- get_timelines(user.name, n = 1000)
+tweets.user
+```
+
+## Some plotting
+
+First of all we are going to see the tweeting frequency of that user
+
+
+```{r}
+tweets.user %>%
+  ts_plot("7 days") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold")) +
+  labs(
+    x = NULL, y = NULL,
+    title = "Frequency of @joserraCasero from past 6 month",
+    subtitle = "Twitter status (tweet) counts aggregated using 1 week intervals",
+    caption = "\nSource: Data collected from Twitter's REST API via rtweet"
+  )
+```
+### Getting people a user follow
+
+```{r}
+friends.id <- get_friends(user.name)
+friends.object <-lookup_users(friends.id$user_id)
+friends.object$screen_name
+```
+
+### Gettin user who follow an user
+
+```{r}
+followers.id <- get_followers(user.name)
+followers.object <-lookup_users(followers.id$user_id)
+followers.object$screen_name
+```
+
+# User operations
+
+In this point I will play with followers and friends.
+1. I'm getting people I follow and don't follow me
+2. I'm getting people who follow me and I dont follow them
+
+
+```{r}
+fans <- anti_join(followers.id, friends.id)$user_id %>%
+          lookup_users()
+haters <- anti_join(friends.id, followers.id)$user_id %>%
+          lookup_users()
+mutuals <- inner_join(friends.id, followers.id)$user_id %>%
+  lookup_users()
+
+
+```
+
+
+
+```{r last.tweet.hater}
+haters.id <- select(haters, user_id)
+last.tweet.hater <- get_timeline(haters.id[[1]], n = 1)
+#last.tweet.hater <- get_timelines(haters, n = 1)
+```
+
+Once I have the last tweet of the follower who dont follow me, I'm going to filter them by who hasnt tweeted in one month
+
+
+```{r filter user not active}
+not.active.hater <- last.tweet.hater %>%
+          filter(today() - as_date(last.tweet.hater$created_at) > 30)
+not.active.hater$screen_name
+```
+

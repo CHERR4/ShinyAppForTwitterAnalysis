@@ -1,4 +1,5 @@
-library("twitteR")
+library("rtweet")
+library("httpuv")
 library("plyr")
 library("tidyverse")
 library("tidytext")
@@ -9,16 +10,9 @@ library("tidyr")
 library("reshape2")
 
 
-
-CONSUMER_KEY <- 'NV6XI9LgMbION0RJsBpTzKtzJ'
-CONSUMER_SECRET <- 'sPemSetJ8mPqQuxD1iSueB707TaIDjC5NwNAkK64exDrVs77Gs'
-access_token <- '2488412620-6UF4rbzupzdlxQU5I6ydbRXPcp2P7gdzZQoaxco'
-access_secret <- 'F3ltkyqteUC0TMRv75yylp8ipoLXvzv83CZplJs1DZgbO'
-setup_twitter_oauth(CONSUMER_KEY, CONSUMER_SECRET, access_token, access_secret)
-
-
 getTweetsFromWord <- function(word) {
-    tweets <- searchTwitter(word,n=1500, lang = "en")
+    tweets <- search_tweets(word,n = 1500, include_rts = FALSE, lang = "en")
+	browser()
     tweets.df <<- ldply(tweets, function(t) t$toDataFrame())
     write.csv(tweets.df, file = paste("data/", word,".csv"), row.names = FALSE)
 }
@@ -34,6 +28,12 @@ load.tweets <- function(word) {
         getTweetsFromWordCsv(word)
         #getTweetsFromWord(word)
     }
+}
+
+load.user <- function(user.text) {
+	user <<- lookup_users(user.text)
+	tweets.user <<- get_timelines(user.text, n = 1000)
+	browser()
 }
 
 getTweets <- function() {
@@ -71,7 +71,6 @@ getMostTweeters <- function() {
 }
 
 getTopTweeters <- function() {
-	# TODO: this is another function to switch with most tweeters
 	tweets.df.2 <- select(tweets.df, screenName, favoriteCount, retweetCount)
 	return(tweets.df.2 %>%
 			group_by(screenName) %>%
@@ -119,8 +118,10 @@ getTopWordBySentimentPlot <- function() {
 	geom_col(show.legend = FALSE, aes(colour = sentiment, fill = sentiment))
 }
 
+
+
 server <- function(input, output) { 
-	observeEvent(input$submit, {
+	observeEvent(input$theme, {
 		load.tweets(input$text)
 
 		output$all.tweets <- DT::renderDataTable({
@@ -162,5 +163,51 @@ server <- function(input, output) {
 		output$top.words <- renderPlot({
 			getTopWordBySentimentPlot()
 		})
+	})
+
+	observeEvent(input$user.submit, {
+		load.user(input$user)
+
+		# output$all.tweets.user <- DT::renderDataTable({
+		# 	DT::datatable(getTweetsUser(),options = list(
+		# 	pageLength = 5  ,
+		# 	lengthMenu = c(5, 10, 20, 25)
+		# 	))
+		# })
+
+		# output$top.tweets.user <- DT::renderDataTable({
+		#  	DT::datatable(getTopTweetsUser(),options = list(
+		#  	pageLength = 5  ,
+		#  	lengthMenu = c(5, 10, 20, 25)
+		#  	))
+		#  })
+
+		# output$followers <- DT::renderDataTable({
+		# 	DT::datatable(getFollowers(),options = list(
+		# 	pageLength = 5,
+		# 	lengthMenu = c(5, 10, 20, 25)
+		# 	))
+		# })
+
+		# output$followed <- DT::renderDataTable({
+		# 	DT::datatable(getFollowed(),options = list(
+		# 	pageLength = 10,
+		# 	lengthMenu = c(5, 10, 20, 25)
+		# 	))
+		# })
+
+		# output$dont.follow.you <- DT::renderDataTable({
+		# 	DT::datatable(getDontFollowYou(),options = list(
+		# 	pageLength = 10,
+		# 	lengthMenu = c(5, 10, 20, 25)
+		# 	))
+		# })
+
+		# output$you.dont.follow <- DT::renderDataTable({
+		# 	DT::datatable(youDontFollow(),options = list(
+		# 	pageLength = 10,
+		# 	lengthMenu = c(5, 10, 20, 25)
+		# 	))
+		# })
 	})
 }
