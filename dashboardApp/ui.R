@@ -44,7 +44,7 @@ ui <- dashboardPage(
       # Second tab content
       tabItem(tabName = "user",
         column(12, 
-            fluidRow(textInput("user", h3("Word search"), 
+            fluidRow(textInput("user", h3("User search"), 
             value = "joserraCasero"),
         actionButton("user.submit", label="submit"))),
         fluidRow(
@@ -62,19 +62,27 @@ ui <- dashboardPage(
           DT::dataTableOutput("dont.follow.you")
           ),
           tabPanel("You dont follow",
-          DT::dataTableOutput("you.dont.follow")))
+          DT::dataTableOutput("you.dont.follow")
+          ),
+          tabPanel("Mutuals",
+          DT::dataTableOutput("mutuals")
+          )
+          )
+        ),
+        fluidRow(
+          tabBox(title = "Words", id="words",
+          tabPanel("Top words",
+          plotOutput("top.words.user"))
+          ), 
+          tabBox(title = "Activity", id="activity",
+          tabPanel("Frequency",
+          plotOutput("tweets.per.week"))
+          )
+          #tabBox(title = "Sentiments", id="sentiments",
+          #tabPanel("Sentiments by tweet",
+          #plotOutput("sentiments.by.tweet"))
+          
         )
-        #fluidRow(
-        #  tabBox(title = "Words", id="words",
-        #  tabPanel("Wordcloud",
-        #  plotOutput("wordcloud")),
-        #  tabPanel("Top words",
-        #  plotOutput("top.words"))
-        #  ),
-        #  tabBox(title = "Sentiments", id="sentiments",
-        #  tabPanel("Sentiments by tweet",
-        #  plotOutput("sentiments.by.tweet")))
-        #)
       )
     )
   )

@@ -15,6 +15,7 @@ library("ggplot2")
 library("dplyr")
 library("lubridate")
 library("purrr")
+library("tidyverse")
 ```
 
 # Getting user
@@ -22,8 +23,13 @@ library("purrr")
 We will see the way of getting an user
 ```{r getUser}
 user.name <- "joserraCasero"
-tweets.user <- get_timelines(user.name, n = 1000)
-tweets.user
+if(!file.exists(paste("data/user.", user.name, ".csv"))){
+		tweets.user <- get_timelines(user.name, n = 1000)
+		tweets.user <- tweets.user %>% select_if(~!is.list(.))
+		write.csv(as.data.frame(tweets.user), file = paste("data/user.", user.name, ".csv"), row.names = FALSE)
+	} else {
+		tweets.user <- read_csv(paste("data/user.", user.name, ".csv"))
+	}
 ```
 
 ## Some plotting
