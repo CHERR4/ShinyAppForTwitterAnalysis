@@ -6,17 +6,17 @@ library(shinyWidgets)
 ui <- dashboardPage(
   dashboardHeader(title = "Twitter app"),
   dashboardSidebar(
-    menuItem("Theme", tabName = "theme", icon = icon("dashboard")),
+    menuItem("Topic", tabName = "topic", icon = icon("dashboard")),
     menuItem("User", tabName = "user", icon = icon("user"))
   ),
   dashboardBody(
   tabItems(
       # First tab content
-      tabItem(tabName = "theme",
+      tabItem(tabName = "topic",
         column(12, 
           fluidRow(textInput("text", h3("Word search"), 
           value = "CambioClimatico"),
-      actionButton("theme", label="submit"))),
+      actionButton("topic", label="submit"))),
         fluidRow(
           tabBox(title= "Tweets", id="tweets",
           tabPanel("All", 
@@ -39,6 +39,12 @@ ui <- dashboardPage(
           tabBox(title = "Sentiments", id="sentiments",
           tabPanel("Sentiments by tweet",
           plotOutput("sentiments.by.tweet")))
+        ),
+        fluidRow(
+          tabBox(title = "Topic", id="topic",
+          tabPanel("Number of topics",
+          plotOutput("number.of.topics"))
+          )
         )
       ),
       # Second tab content
@@ -66,17 +72,26 @@ ui <- dashboardPage(
           ),
           tabPanel("Mutuals",
           DT::dataTableOutput("mutuals")
+          ),          
+          tabPanel("No active",
+          DT::dataTableOutput("no.active.following")
           )
           )
         ),
         fluidRow(
           tabBox(title = "Words", id="words",
           tabPanel("Top words",
-          plotOutput("top.words.user"))
+          plotOutput("top.words.user")),
+          tabPanel("Correlated words",
+          plotOutput("top.correlated.word")),
+          tabPanel("Correlated liked words",
+          plotOutput("top.correlated.liked.word"))
           ), 
           tabBox(title = "Activity", id="activity",
-          tabPanel("Frequency",
-          plotOutput("tweets.per.week"))
+          tabPanel("Week",
+          plotOutput("tweets.per.week")),
+          tabPanel("Hour",
+          plotOutput("tweets.per.hour"))
           )
           #tabBox(title = "Sentiments", id="sentiments",
           #tabPanel("Sentiments by tweet",

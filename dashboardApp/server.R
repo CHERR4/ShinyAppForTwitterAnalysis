@@ -8,36 +8,31 @@ library("wordcloud")
 library("ggplot2")
 library("tidyr")
 library("reshape2")
+library("lubridate")	
+library("igraph")
+library("ggraph")
+# library("topicmodels")
 
-
-getTweetsFromWord <- function(word) {
-    tweets.df <<- search_tweets(word, n = 1500, include_rts = FALSE, lang = "en")
-	tweets.df <<- tweets.df %>% select_if(~!is.list(.))
-    write.csv(as.data.frame(tweets.df), file = paste("data/", word,".csv"), row.names = FALSE)
-}
-
-getTweetsFromWordCsv <- function(word) {
-    tweets.df <<- read_csv(paste("data/", word, ".csv"))
-}
 
 load.tweets <- function(word) {
 	if(!file.exists(paste("data/", word, ".csv"))) {
-        getTweetsFromWord(word)
+		tweets.tibble <<- search_tweets(word, n = 1500, include_rts = FALSE, lang = "en")
+		tweets.tibble <<- tweets.tibble %>% select_if(~!is.list(.))
+    	write.csv(as.data.frame(tweets.tibble), file = paste("data/", word,".csv"), row.names = FALSE)
     } else {
-        getTweetsFromWordCsv(word)
-        #getTweetsFromWord(word)
+		tweets.tibble <<- read_csv(paste("data/", word, ".csv"))
     }
 }
 
 load.user <- function(user.text) {
 	user.name <<- user.text
 	if(!file.exists(paste("data/user.", user.name, ".csv"))){
-		tweets.user <<- get_timelines(user.name, n = 1000)
-		tweets.user <<- tweets.user %>% filter(!is_retweet)
-		tweets.user <<- tweets.user %>% select_if(~!is.list(.))
-		write.csv(as.data.frame(tweets.user), file = paste("data/user.", user.name, ".csv"), row.names = FALSE)
+		tweets.tibble <<- get_timelines(user.name, n = 1000)
+		tweets.tibble <<- tweets.tibble %>% filter(!is_retweet)
+		tweets.tibble <<- tweets.tibble %>% select_if(~!is.list(.))
+		write.csv(as.data.frame(tweets.tibble), file = paste("data/user.", user.name, ".csv"), row.names = FALSE)
 	} else {
-		tweets.user <<- read_csv(paste("data/user.", user.name, ".csv"))
+		tweets.tibble <<- read_csv(paste("data/user.", user.name, ".csv"))
 	}
 	friends.id <- get_friends(user.name)
 	followed <<- lookup_users(friends.id$user_id)%>%
@@ -48,17 +43,19 @@ load.user <- function(user.text) {
 }
 
 getTweetsUser <- function() {
-	return(tweets.user %>%
+	return(tweets.tibble %>%
 	select(text, screen_name, retweet_count, favorite_count))
 }
 
+getLikedTweets <- function() {
+	return(get_favorites(user.name))
+}
+
 getTopTweetsUser <- function() {
-	return(tweets.user %>%
+	return(tweets.tibble %>%
 	select(text, screen_name, retweet_count, favorite_count) %>%
 	arrange(desc(retweet_count), desc(favorite_count)))
 }
-
-
 
 getDontFollowYou <- function() {
 	return(anti_join(followed, followers))
@@ -73,19 +70,17 @@ getMutuals <- function() {
 }
 
 getTweets <- function() {
-    # tweets <- searchTwitter(word,n=1500)
-    # Convertimos a data.frame
-	return(select(tweets.df, text, screen_name))
+	return(select(tweets.tibble, text, screen_name))
 }
 
 getTopTweets <- function() {
-	return(tweets.df %>%
+	return(tweets.tibble %>%
 	select(text, screen_name, retweet_count, favorite_count) %>%
 	arrange(desc(retweet_count)))
 }
 
 getWordcloud <- function() {
-	arranged.tweets <- tweets.df %>%
+	arranged.tweets <- tweets.tibble %>%
   		arrange(desc(retweet_count))
 	word.tokens <<- arranged.tweets %>%
         select(text) %>%
@@ -100,7 +95,7 @@ getWordcloud <- function() {
 }
 
 getWordcloudUser <- function() {
-	word.tokens <<- tweets.user %>%
+	word.tokens <<- tweets.tibble %>%
         select(text) %>%
         mutate(tweet = row_number()) %>%
         unnest_tokens(word, text)
@@ -115,15 +110,15 @@ getWordcloudUser <- function() {
 }
 
 getMostTweeters <- function() {
-	tweets.df.2 <- select(tweets.df, screen_name)
-	grouped.tweets <- group_by(tweets.df.2, screen_name)
-	n.tweets.user <- arrange(unique(dplyr::mutate(grouped.tweets, number=n())), desc(number))
-	return(n.tweets.user)
+	tweets.tibble.2 <- select(tweets.tibble, screen_name)
+	grouped.tweets <- group_by(tweets.tibble.2, screen_name)
+	n.tweets.tibble <- arrange(unique(dplyr::mutate(grouped.tweets, number=n())), desc(number))
+	return(n.tweets.tibble)
 }
 
 getTopTweeters <- function() {
-	tweets.df.2 <- select(tweets.df, screen_name, favorite_count, retweet_count)
-	return(tweets.df.2 %>%
+	tweets.tibble.2 <- select(tweets.tibble, screen_name, favorite_count, retweet_count)
+	return(tweets.tibble.2 %>%
 			group_by(screen_name) %>%
 			summarise_at(vars(retweet_count),
 			list(rt = sum))
@@ -132,7 +127,7 @@ getTopTweeters <- function() {
 }
 
 getWordTibble <- function() {
-	word.tibble <<- tweets.df %>%
+	word.tibble <<- tweets.tibble %>%
 	mutate(ntweet = row_number()) %>%
 	select(ntweet, text) %>% 
 	unnest_tokens(word, text) %>%
@@ -140,7 +135,7 @@ getWordTibble <- function() {
 }
 
 getSentimentPlot <- function() {
-	arranged.tweets <- tweets.df %>%
+	arranged.tweets <- tweets.tibble %>%
   		arrange(desc(retweet_count))
 	word.tokens <<- arranged.tweets %>%
         select(text) %>%
@@ -157,7 +152,7 @@ getSentimentPlot <- function() {
 
 # TODO: fix duplicated code to get tweets.sentiments and word.tokens
 getTopWordBySentimentPlot <- function() {
-	arranged.tweets <- tweets.df %>%
+	arranged.tweets <- tweets.tibble %>%
   		arrange(desc(retweet_count))
 	word.count <- arranged.tweets %>%
 					select(text) %>%
@@ -170,7 +165,7 @@ getTopWordBySentimentPlot <- function() {
 }
 
 getTweetsPerWeek <- function() {
-	tweets.user %>%
+	tweets.tibble %>%
 		ts_plot("7 days") +
 		theme_minimal() +
 		theme(plot.title = element_text(face = "bold")) +
@@ -181,8 +176,47 @@ getTweetsPerWeek <- function() {
 		)
 }
 
+getTweetsPerHour <- function() {
+	tweets.hour <- tweets.tibble %>%
+					transmute(hour(created_at)) %>%
+					rename("hour" = "hour(created_at)")
+	return(ggplot(tweets.hour, aes(x = hour)) +
+	geom_bar(stat = "count", fill = "blue") +
+	theme_minimal())
+}
+
+getTopCorrelatedWords <- function(tweets) {
+	stopwords <- c("https", "t.co", "http")
+	word.bigrams <- tweets %>% 
+		select(text) %>%
+		unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
+		separate(bigram, c("word1", "word2", sep = " ")) %>%
+		filter(!word1 %in% union(stop_words$word, stopwords)) %>%
+		filter(!word2 %in% union(stop_words$word, stopwords)) %>%
+		count(word1, word2, sort = TRUE) %>% 
+		filter(n > quantile(n, .98)) %>%
+  		graph_from_data_frame()
+
+	set.seed(2017)
+
+	return(ggraph(word.bigrams, layout = "fr") +
+		geom_edge_link() +
+		geom_node_point() +
+		geom_node_text(aes(label = name), vjust = 1, hjust = 1))
+}
+
+getNumberOfTopicsPlot <- function() {
+	return(number_topics(DataFrame = tweets.tibble, 
+		num_cores = 2L, 
+		min_clusters = 2, 
+		max_clusters = 12, 
+		skip = 1, 
+		set_seed = 1234))
+}
+
+
 server <- function(input, output) { 
-	observeEvent(input$theme, {
+	observeEvent(input$topic, {
 		load.tweets(input$text)
 
 		output$all.tweets <- DT::renderDataTable({
@@ -223,6 +257,10 @@ server <- function(input, output) {
 
 		output$top.words <- renderPlot({
 			getTopWordBySentimentPlot()
+		})
+
+		output$number.of.topics <- renderPlot({
+			getNumberOfTopicsPlot()
 		})
 	})
 
@@ -284,6 +322,25 @@ server <- function(input, output) {
 
 		output$tweets.per.week <- renderPlot({
 			getTweetsPerWeek()
+		})
+
+		output$tweets.per.hour <- renderPlot({
+			getTweetsPerHour()
+		})
+
+		output$top.correlated.word <- renderPlot({
+			getTopCorrelatedWords(tweets.tibble)
+		})
+
+		output$top.correlated.liked.word <- renderPlot({
+			getTopCorrelatedWords(getLikedTweets())
+		})
+
+		output$no.active.following <- DT::renderDataTable({
+		 	DT::datatable(getMutuals(),options = list(
+		 	pageLength = 5,
+		 	lengthMenu = c(5, 10, 20, 25)
+		 	))
 		})
 	})
 }
